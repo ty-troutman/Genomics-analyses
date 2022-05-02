@@ -1,0 +1,411 @@
+---
+title: "An introductory exploration of RNA-seq data using R and tidyverse"
+author: "Ty D. Troutman"
+date: "12/18/2021"
+format: gfm
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Some basics
+
+Commenting your code can help you and others understand what you were doing. A comment is generated using '#'.
+
+You can navigate your computer as follows:
+
+```{r}
+# how to find your working directory
+getwd()
+
+# how to list directory files
+list.files()
+
+#how to list sub directories
+list.dirs()
+
+# how to list files from someplace other than your working directory
+list.files("../Data/Source/")
+
+# how to make a new directory
+# dir.create("~/Documents/example")
+
+# how to change your working directory
+# setwd("./")
+```
+
+## Reading in data
+
+In this tutorial we will make a scatter plot using RNA-seq data from table S2 in [Seidman et. al. Immunity. Volume 52, Issue 6, 16 June 2020, Pages 1057-1074.e7](https://pubmed.ncbi.nlm.nih.gov/32362324/), which can be downloaded [here](https://ars.els-cdn.com/content/image/1-s2.0-S107476132030159X-mmc3.xlsx). Once we have the data, we will need to open Rstudio and load the necessary packages. We can do that with [library()](https://www.datacamp.com/community/tutorials/r-packages-guide).
+
+```{r pressure, echo=TRUE}
+library(tidyverse)
+```
+
+Now we can use read_excel() from the [readxl](https://readxl.tidyverse.org) package to load our excel spreadsheet. We can use [readr:read_csv() or readr:read_tsv()](https://readr.tidyverse.org) to load .csv and .txt files.
+
+```{r}
+# read in our data
+tb1 <- 
+  readxl::read_excel(
+  path = "../Data/Source/1-s2.0-S107476132030159X-mmc3.xlsx") 
+
+```
+
+```{r, echo=TRUE}
+tb1
+```
+
+We can use colnames() to see the names of the columns in this table.
+
+```{r}
+colnames(x = tb1)
+```
+
+That's a lot of data, lets only keeps a small part that we want to practice with for now. To do this let's keep the first two columns, which have gene identifier information, and lets keep the next 4 column which are replicate RNA-seq data for two conditions. To keep these columns, we will use the [dplyr::select()](https://dplyr.tidyverse.org/reference/select.html) verb, which operates on columns.
+
+```{r}
+dplyr::select(.data = tb1, 1:6) # this format gives us column 1 to 6, and everything between
+
+dplyr::select(.data = tb1, c(1, 2, 3, 4, 5, 6)) # this format declares which columns to keep in order
+```
+
+We can also pipe commands from left to right using magrittr [%\>%](https://magrittr.tidyverse.org) operator. This allows us to chain operations together so that we don't need to define a bunch of variables to store in memory, or overwrite variables by reusing variable names. Reusing variable names can lead to bugs in our analyses (if we aren't careful)!
+
+```{r}
+tb1 <- readxl::read_xlsx(
+  path = "../Data/Source/1-s2.0-S107476132030159X-mmc3.xlsx") %>% 
+  dplyr::select(1:6) 
+tb1
+```
+
+These column names could be made easier. Let's rename them using the dplyr verb [dplyr::rename](https://dplyr.tidyverse.org/reference/rename.html?q=rename).
+
+```{r}
+tb1 <- readxl::read_xlsx(
+  path = "../Data/Source/1-s2.0-S107476132030159X-mmc3.xlsx") 
+tb1 <- dplyr::select(tb1, 1:6)
+tb1 <- rename(.data = tb1, accession = 1, gene = 2, kch_rep1 = 3, kch_rep2 = 4, kn_rep1 = 5, kn_rep2 = 6)
+tb1
+```
+
+The above snippet is equivalent to using a string of pipes to parse the data prior to generating the final variable:
+
+```{r}
+tb1 <-
+  readxl::read_xlsx(path = "../Data/Source/1-s2.0-S107476132030159X-mmc3.xlsx") %>%
+  dplyr::select(1:6) %>%
+  dplyr::rename(
+    accession = 1,
+    gene = 2,
+    kch_rep1 = 3,
+    kch_rep2 = 4,
+    kn_rep1 = 5,
+    kn_rep2 = 6
+  )
+tb1
+```
+
+## A Basic Scatter Plot
+
+Now we have some tidy data, let's compare the replicates by making a scatterplot! We can accomplish this using [ggplot2](https://ggplot2.tidyverse.org) and the [geom_point()](https://ggplot2.tidyverse.org/reference/index.html) layer
+
+Notice that we pipe our tidy data into ggplot2 as before with '%\>%'. However, for assembling a ggplot script, we instead 'add' each component together in series using the '+'. This happens after initiating the ggplot() function call. After this point, we should for now think of the data as no longer requiring manipulation using function outside of ggplot context. *See [Hadley Wickham's answer](https://community.rstudio.com/t/why-cant-ggplot2-use/4372/6) for a better understanding on why ggplot2 uses '+' and not '%\>%'.*
+
+```{r}
+tb1 %>% 
+  ggplot() + # + not %>%
+  geom_point(mapping = aes(x = kch_rep1,
+                           y = kch_rep2))
+```
+
+This works, but we notice here that the RNA-seq data is not normally distributed. Instead it is log normal. This means if we want to best visualize a lot of genes at the same time, we should first transform them. We accomplish this by adding 1 to each data point, then taking the log base 2 of each data point: log2(dataExample + 1). This transform can be easily wrapped into the ggplot code. To learn more about how to use R to comput logarithms and exponents, click this [link](https://www.rdocumentation.org/packages/base/versions/3.6.2/topics/log) or type '?log()' into the R console.
+
+```{r}
+tb1 %>%
+  ggplot() +
+  geom_point(mapping = aes(x = log2(kch_rep1 + 1),
+                           y = log2(kch_rep2 + 1)))
+```
+
+Do the same thing but with the other pair of data:
+
+```{r}
+tb1 %>%
+  ggplot() +
+  geom_point(mapping = aes(x = log2(kn_rep1 + 1),
+                           y = log2(kn_rep2 + 1)))
+```
+
+But now we want to compare the conditions to each other instead of comparing the biological replicates. To do that we need to summarize the data and compute the mean values. This is accomplished using dplyr::mutate.
+
+First read a little about '[mutate()](https://dplyr.tidyverse.org/reference/mutate.html)' and '[across()](https://dplyr.tidyverse.org/reference/across.html)'. These are powerful tools for data transforms, but require some practice. They also require careful attention to the logic to ensure operations are occurring as you desire.
+
+```{r}
+?mutate()
+?across()
+```
+
+Now lets calculate the within group means for our replicates. But before we do that, we should remember we also need out data to be log2(data+1) transformed.The challenge is we need to tell R that we want to transform each cell from the columns we point it to. We can accomplish this by using the vector function dplyr::across inside of mutate. There are many useful strategies for processing data by combining the mutate verb and across function.
+
+```{r}
+tb1 %>%
+  mutate(
+    across(
+      .cols = 3:6, # define the columns to mutate
+      .fns = ~ log2(. + 1) # define the function, the '.' represents the data in each cell
+    )
+  )
+```
+
+Now pipe the log normalization into a mean calculation, again using dplyr::mutate.
+
+```{r}
+tb1 %>%
+  mutate(
+    across(
+      .cols = 3:6, # define the columns to mutate
+      .fns = ~ log2(. + 1) # define the function, the '.' represents the data in each cell
+    )
+  ) %>%
+  mutate(
+    kch_mean = (kch_rep1 + kch_rep2)/2,
+    kn_mean = (kn_rep1 + kn_rep2)/2
+  )
+```
+
+Now let's check our code is working by independently computing a test case. We can identify some test data by 'slicing' out a row using the [dplyr::slice](https://dplyr.tidyverse.org/articles/base.html?q=slice#slice-choose-rows-by-position) verb and selecting the columns to compute.
+
+```{r}
+tb1 %>% slice(1) %>% select(3:4)
+```
+
+Manually calculate the average:
+
+```{r}
+(log2(43.6 + 1) + log2(36.3 + 1))/2
+```
+
+Does the value equal what we got above? What is different?
+
+```{r}
+tb1 %>%
+  mutate(
+    across(
+      .cols = 3:6, # define the columns to mutate
+      .fns = ~ log2(. + 1) # define the function, the '.' represents the data in each cell
+    )
+  ) %>%
+  mutate(
+    kch_mean = (kch_rep1 + kch_rep2)/2,
+    kn_mean = (kn_rep1 + kn_rep2)/2
+  ) %>% slice(1) %>% select(7)
+```
+
+Now lets add these components together and make the comparison scatter plot. Remember that now we are plotting the newly created variable that we generate within the piped commands. Thus we need to provide those variable names to geom_point(). And since we already log transformed, we should not do it again inside the ggplot code block. Note: here I am stashing the transformed data as a new variable. I then use this new variable to pipe into ggplot on a new coding line. We will use this variable further below.
+
+```{r}
+tb2 <- 
+  tb1 %>%
+  mutate(
+    across(
+      .cols = 3:6, # define the columns to mutate
+      .fns = ~ log2(. + 1) # define the function, the '.' represents the data in each cell
+    )
+  ) %>%
+  mutate(
+    kch_mean = (kch_rep1 + kch_rep2)/2,
+    kn_mean = (kn_rep1 + kn_rep2)/2
+  )
+
+tb2 %>%
+  ggplot() +
+  geom_point(aes(x = kch_mean, y = kn_mean))
+```
+
+Ok great, but now we really want to know the identity of the genes with the largest differences! Let's make a new variable with only those genes. We normally accomplish this using differential expression analysis. Today let's use a simpler strategy by just comparing the fold-change.
+
+Remember, in [logarithmic mathematics](https://en.wikipedia.org/wiki/Logarithm), log2(x+1) - log2(y+1) is equal to log2((x+1) / (y+1)). Since our data is already log transformed, the fold change is computer by comparing the difference of the numbers.
+
+```{r}
+tb2 %>% 
+  mutate(
+    logFC = kch_mean - kn_mean
+  )
+```
+
+Ok, now lets identify the instance were the logFC is \> 1 or \< -1. In other words, a fold change greater than '2'. For this we will use a new dplyr verb, [dplyr::filter](https://dplyr.tidyverse.org/reference/filter.html), which operates on data rows. We also will need to use an R logical operator. With R, '\|' is equivalent to or, '&' is equivalent to and. Read more here: <https://www.statmethods.net/management/operators.html>
+
+```{r}
+tb2 %>% 
+  mutate(
+    logFC = kch_mean - kn_mean
+  ) %>%
+  filter(logFC > 1 | logFC < -1)
+```
+
+This yields a lot of 'different' genes! Lets make our space smaller by being more restrictive. Lets also generate a new variable with this smaller data set.
+
+```{r}
+tb3 <-
+  tb2 %>% 
+  mutate(
+    logFC = kch_mean - kn_mean
+  ) %>%
+  filter(logFC > 6 | logFC < -6)
+tb3
+```
+
+Ok, 8 genes is a small enough set for now. Now lets add labels to our scatter plot above with the identifier information for these genes. We can accomplish this in several ways. One way is to overlay the text from the new filtered variable using [geom_text()](https://ggplot2.tidyverse.org/articles/articles/faq-annotation.html?q=geom%20_%20text#why-is-annotation-created-with-geom_text-pixellated-how-can-i-make-it-more-crisp). In this case we must define the source of the data and the x and y positions must be the same. We also must supply the identity of the column containing the labels.
+
+```{r}
+tb2 %>% 
+  ggplot() +
+  geom_point(aes(x = kch_mean, y = kn_mean)) +
+  geom_text(data = tb3, aes(x = kch_mean, y = kn_mean, label = accession))
+```
+
+Ok, that's not bad, but a gene name would be better. Unfortunately, our gene names are buried in with a lot of information. Let's extract it! That is made easy with columns using the [tidyr::separate](https://tidyr.tidyverse.org/reference/separate.html) verb. Read about it first:
+
+```{r}
+?tidyr::separate()
+```
+
+```{r}
+tb3 <- 
+  tb2 %>% 
+  mutate(
+    logFC = kch_mean - kn_mean
+  ) %>%
+  filter(logFC > 6 | logFC < -6) %>%
+  separate(col = 2, into = "gene", 
+           sep = "\\|", # this part is tricky and follow 'regular expression' rules
+           remove = TRUE, extra = "drop")
+```
+
+Now lets regenerate the scatter plot with the gene names labeled instead.
+
+```{r}
+tb2 %>% 
+  ggplot() +
+  geom_point(aes(x = kch_mean, y = kn_mean)) +
+  geom_text(data = tb3, aes(x = kch_mean, y = kn_mean, label = gene))
+```
+
+Pretty good, but those duplicate gene names from splice variant accessions are cause the plot to look blurry. We can remove those without much forethought using the [dplyr::distinct](https://dplyr.tidyverse.org/reference/distinct.html) verb. That's not the best idea long term, but useful for now. I will apply this to the initial data being plotted and also inside geom_text().
+
+```{r}
+?distinct()
+
+tb2 %>%
+  distinct(gene, .keep_all = TRUE) %>%
+  ggplot() +
+  geom_point(aes(x = kch_mean, y = kn_mean)) +
+  geom_text(data = tb3 %>% distinct(gene, .keep_all = TRUE),
+            aes(x = kch_mean, y = kn_mean, label = gene))
+```
+
+Now we can stack it all together. Into one tibble. And use that tibble for our plot. Which also provides the opportunity to illustrate that dplyr functions can be layered inside of gglot functions.
+
+```{r}
+tb4 <-
+  readxl::read_xlsx(path = "../Data/Source/1-s2.0-S107476132030159X-mmc3.xlsx") %>%
+  dplyr::select(1:6) %>%
+  dplyr::rename(
+    accession = 1,
+    gene = 2,
+    kch_rep1 = 3,
+    kch_rep2 = 4,
+    kn_rep1 = 5,
+    kn_rep2 = 6
+  ) %>%
+  separate(col = 2, into = "gene", 
+           sep = "\\|", # this part is tricky and follow 'regular expression' rules
+           remove = TRUE, extra = "drop") %>%
+  distinct(gene, .keep_all = TRUE) %>%
+  mutate(
+    across(
+      .cols = 3:6, # define the columns to mutate
+      .fns = ~ log2(. + 1) # define the function, the '.' represents the data in each cell
+    )
+  ) %>%
+  mutate(
+    kch_mean = (kch_rep1 + kch_rep2)/2,
+    kn_mean = (kn_rep1 + kn_rep2)/2
+  ) %>% 
+  mutate(
+    logFC = kch_mean - kn_mean
+  )
+tb4
+```
+
+```{r}
+tb4 %>%
+  ggplot() +
+  geom_point(aes(x = kch_mean, y = kn_mean)) +
+  geom_text(data = tb4 %>%
+              filter(logFC > 6 | logFC < -6), 
+            aes(x = kch_mean, y = kn_mean, label = gene))
+```
+
+Finally, we have a plot that we may want to share. This is easy with ggplot using [ggave()](https://ggplot2.tidyverse.org/reference/ggsave.html?q=ggsave). We can either make the plot itself into a variable, or simply generate an image using the last ggplot created.
+
+```{r}
+plot1 <-
+  tb4 %>%
+  ggplot() +
+  geom_point(aes(x = kch_mean, y = kn_mean)) +
+  geom_text(data = tb4 %>%
+              filter(logFC > 6 | logFC < -6),
+            aes(x = kch_mean, y = kn_mean, label = gene))
+ggsave(
+  filename = "../Data/Plots/scatterchart1.png",
+  plot = plot1,
+  width = 4,
+  height = 4,
+  units = "in",
+  dpi = 150,
+  bg = "white"
+)
+```
+
+The plot can be refined in many ways. And the text can be better controlled using the [ggrepel package](https://cran.r-project.org/web/packages/ggrepel/vignettes/ggrepel.html). See what you can do!
+
+```{r}
+require(ggrepel)
+tb4 %>%
+  filter(kch_mean > 2 | kn_mean > 2) %>%
+  ggplot() +
+  geom_bin_2d(aes(x = kch_mean, y = kn_mean), bins = 101) +
+  scale_fill_continuous(type = "viridis") +
+  geom_text_repel(
+    data = tb4 %>%
+      filter(logFC > 6 | logFC < -6),
+    aes(x = kch_mean, y = kn_mean, label = gene),
+    fontface = "italic"
+  ) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "none", 
+        axis.text = element_text(colour = "black")) +
+  labs(x = "Healthy Kupffer cells", 
+       y = "NASH Kupffer cells", 
+       title = "RNA-seq, mean expression") +
+  coord_fixed()
+
+ggsave(
+  filename = "../Data/Plots/scatterchart2.png",
+  width = 4,
+  height = 4,
+  units = "in",
+  dpi = 150,
+  bg = "white"
+)
+```
+
+## Finished!!
+
+```{R}
+sessioninfo::session_info(pkgs = NULL) %>% details::details(summary = 'Current session info', open = TRUE)
+```

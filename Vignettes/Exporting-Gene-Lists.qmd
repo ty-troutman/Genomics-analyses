@@ -1,0 +1,51 @@
+---
+title: "Exporting gene lists with R"
+format: gfm
+editor: visual
+---
+
+------------------------------------------------------------------------
+
+```{R}
+library(tidyverse)
+```
+
+```{R}
+tb1 <-
+  readxl::read_excel(path = "../Data/Source/1-s2.0-S107476132030159X-mmc3.xlsx") %>%
+  dplyr::select(1:6) %>%
+  dplyr::rename(
+    accession = 1,
+    gene = 2,
+    kch_rep1 = 3,
+    kch_rep2 = 4,
+    kn_rep1 = 5,
+    kn_rep2 = 6
+  ) %>%
+  mutate(across(.cols = 3:6,
+                .fns = ~ log2(. + 1))) %>%
+  mutate(kch_mean = (kch_rep1 + kch_rep2) / 2,
+         kn_mean = (kn_rep1 + kn_rep2) / 2) %>%
+  mutate(logFC = kch_mean - kn_mean) %>%
+  separate(
+    col = 2,
+    into = "gene",
+    sep = "\\|",
+    remove = TRUE,
+    extra = "drop"
+  )
+```
+
+```{R}
+nash <-
+  tb1 %>% 
+  filter(logFC < -1) %>%
+  distinct(gene) %>%
+  write_csv(file = "../Data/Processed/nash.csv")
+
+control <-
+  tb1 %>% 
+  filter(logFC > 1) %>%
+  distinct(gene) %>%
+  write_csv(file = "../Data/Processed/control.csv")
+```

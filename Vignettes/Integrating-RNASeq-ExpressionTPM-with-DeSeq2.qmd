@@ -1,0 +1,38 @@
+---
+title: "Integrating RNA expression data with differential statistics from DeSeq2"
+format: gfm
+editor: visual
+---
+
+Purpose:
+
+```{r pressure, echo=TRUE}
+library(tidyverse)
+```
+
+Read in normalized TPM expression data
+
+```{r}
+read_tsv("../Data/Source/rawT.txt") %>% colnames()
+
+tpm <- read_tsv("../Data/Source/rawT.txt") %>% select(1:5) %>% rename(geneID = 1)
+```
+
+Read in DeSeq2 differential expression data for these selected comparisons
+
+```{R}
+diff <- read_tsv("../Data/Source/BALBcJ_F0_Control.vs.C57BL6J_F0_Control.scatter.txt") %>% rename(geneID = 1)
+```
+
+Now merge data together. This will invovle using the join functions that are part of dplyr. Dplyr has mutate joins (inner_join, full_join, right_join, left_join) and filter joins (semi_join and anti_join), including full_join, semi_join, left_join, right_join, inner_join, and I probably forgot a few.
+
+For this case we want consider genes that meet minimal expression criteria and were included in the differential expression analysis. So we will use inner_join
+
+```{R}
+merge <-  inner_join(x = tpm, y = diff, by = "geneID")
+mergeMean <- merge %>%
+  mutate(meanBALB = (BALBcJ_F0_Control_BALB01C + BALBcJ_F0_Control_BALB01D) /
+           2) %>%
+  mutate(meanC57 = (C57BL6J_F0_Control_C5701C + C57BL6J_F0_Control_C5701D) /
+           2)
+```
